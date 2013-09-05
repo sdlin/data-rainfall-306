@@ -42,9 +42,10 @@
 		}
 		.art-title {
 			font-weight: bold;
-			font-size: 16px;
+			font-size: 15px;
 		}
 		.art-date {
+			font-weight: normal;
 			font-size: 12px;
 		}
 		.art-body {
@@ -59,20 +60,22 @@
 
 		<form method="post">
 			<label>
-				<div>title</div>
+				<div>title:</div>
 				<input type="text" maxlength="500" name="title" value="{{title}}">
 			</label>
 			<br>
 			<label>
-				<div>art</div>
+				<div>input ascii art:</div>
 				<textarea name="arttext">{{arttext}}</textarea>
 			</label>
 
 			<div class="error">{{error}}</div>
 
-			<input type="submit">
+			<input type="submit" value="Submit To Art Gallery">
 		</form>
 
+		<br>
+		<h2> Art Gallery: </h2>
 		<hr>
 
 		{% for art in arts %}
@@ -80,6 +83,7 @@
 				<div class="art-title">{{art.title}}<font class="art-date"> - [{{art.date_created}}]</font></div>
 				<pre class="art-body">{{art.arttext}}</pre>
 			</div>
+			<hr>
 		{% endfor %}
 
 	</body>
