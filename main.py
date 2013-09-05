@@ -17,8 +17,6 @@
 import os
 import webapp2
 import jinja2
-import datetime
-import time
 
 from google.appengine.ext import db
 
