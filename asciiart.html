@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<title>AsCii aRt</title>
+	</head>
+
+	<style type="text/css">
+		body {
+			font-family: sans-serif;
+			width: 800;
+			margin: 0 auto;
+			padding: 18px;
+		}
+		.error {
+			color: red;
+		}
+		label {
+			display: block;
+			font-size: 16px;
+		}
+
+		input[type=text] {
+			width: 400px;
+			font-size: 14px;
+			padding: 2px;
+		}
+		textarea {
+			width: 400px;
+			height: 200px;
+			font-size: 12px;
+			font-family: monospace;
+		}
+		input[type=submit] {
+			font-size: 30px;
+		}
+		hr {
+			margin: 20px auto;
+		}
+		.art + .art {
+			margin-top: 20px;
+		}
+		.art-title {
+			font-weight: bold;
+			font-size: 16px;
+		}
+		.art-date {
+			font-size: 12px;
+		}
+		.body-art {
+			margin: 0;
+			font-size: 12px;
+		}
+	</style>
+
+
+	<body>
+		<h1> AsCii aRt </h1>
+
+		<form method="post">
+			<label>
+				<div>title</div>
+				<input type="text" maxlength="500" name="title" value="{{title}}">
+			</label>
+			<br>
+			<label>
+				<div>art</div>
+				<textarea name="arttext">{{arttext}}</textarea>
+			</label>
+
+			<div class="error">{{error}}</div>
+
+			<input type="submit">
+		</form>
+
+		<hr>
+
+		{% for art in arts %}
+			<div class="art">
+				<div class="art-title">{{art.title}}<font class="art-date"> - [{{art.date_created}}]</font></div>
+				<pre class="art-body">{{art.arttext}}</pre>
+			</div>
+		{% endfor %}
+
+	</body>
+
+</html>
