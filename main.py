@@ -14,104 +14,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import webapp2
+import jinja2
 
-root_get_response = """
-Welcome to data-rainfall-306!
-<br>
-<form method="post" action="/testformresponse">
-<input name="q">
-<input type="submit" value="submit something awesome">
-</form>
-"""
+JINJA_ENVIRONMENT = jinja2.Environment(
+	autoescape=True,
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'])
 
-testform_get_response = """
-This is the get response for testform.  
-<br>
-Not too interesting is it?  Try a post response...
-"""
+class BaseHandler(webapp2.RequestHandler):
+	def write(self, *a, **kw):
+		self.response.out.write(*a, **kw)
 
-testdateform_get_response = """
-<form method="post">
-	What is your birthday?
-	<br>
-	<label> Month
-		<input type="text" name="month" value=%(month)s>
-	</label>
-	<label> Day
-		<input type="text" name="day" value=%(day)s>
-	</label>
-	<label> Year
-		<input type="text" name="year" value=%(year)s>
-	</label>
-	<div style="color: red">%(error)s</div>
-	<br>
-	<br>
-	<input type="submit">
-</form>
-"""
+	def render_str(self, template, **params):
+		t = JINJA_ENVIRONMENT.get_template(template)
+		return t.render(params)
 
-def valid_month(monthstring):
-	months = ['January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December']
+	def render(self, template, **kw):
+		self.write(self.render_str(template, **kw))
 
-	if monthstring.capitalize() in months:
-		return monthstring.capitalize()
-
-def valid_day(daystring):
-	if daystring.isdigit():
-		dayint = int(daystring)
-		if dayint > 0 and dayint <= 31:
-			return dayint
-
-def valid_year(yearstring):
-	if yearstring.isdigit():
-		yearint = int(yearstring)
-		if yearint > 0:
-			return yearint
-	
-def escape_html(s):
-		for (i, o) in (("&", "&amp;"),
-					   (">", "&gt;"),
-					   ("<", "&lt;"),
-					   ('"', "&quot;"),
-					   ("'", "&apos;")):
-			s = s.replace(i, o)
-		return s
-
-def valid_date(input_month, input_day, input_year):
-		month = valid_month(input_month)
-		day = valid_day(input_day)
-		year = valid_year(input_year)
-		return month, day, year
-
-class MainHandler(webapp2.RequestHandler):
+class MainHandler(BaseHandler):
     def get(self):
-        self.response.write(root_get_response)
+        self.render("index.html")
 
-class TestFormHandler(webapp2.RequestHandler):
+class TestFormHandler(BaseHandler):
 	def get(self):
-		self.response.write(testform_get_response)
+		self.write("Not too interesting is it?  Try a post response...")
 	def post(self):
 		self.response.headers['Content-Type'] = 'text/plain'
-		self.response.write(self.request)
+		self.write(self.request)
 
-class TestDateFormHandler(webapp2.RequestHandler):
+class TestDateFormHandler_Helpers(BaseHandler):
+	def valid_month(self, monthstring):
+		months = ['January',
+	          'February',
+	          'March',
+	          'April',
+	          'May',
+	          'June',
+	          'July',
+	          'August',
+	          'September',
+	          'October',
+	          'November',
+	          'December']
+		if monthstring.capitalize() in months:
+			return monthstring.capitalize()
+
+	def valid_day(self, daystring):
+		if daystring.isdigit():
+			dayint = int(daystring)
+			if dayint > 0 and dayint <= 31:
+				return dayint
+
+	def valid_year(self, yearstring):
+		if yearstring.isdigit():
+			yearint = int(yearstring)
+			if yearint > 0:
+				return yearint
+
+	def valid_date(self, input_month, input_day, input_year):
+			month = self.valid_month(input_month)
+			day = self.valid_day(input_day)
+			year = self.valid_year(input_year)
+			return month, day, year
+
+class TestDateFormHandler(TestDateFormHandler_Helpers):
 	def write_form(self, error="", month="January", day="1", year="1900"):
-		self.response.out.write(testdateform_get_response % {"error":escape_html(error), 
-															 "month":escape_html(month),
-															 "day":escape_html(day), 
-															 "year":escape_html(year)})
+		self.render("testdateform.html", error=error, month=month, day=day, year=year)
 	
 	def get(self):
 		self.write_form()
@@ -120,7 +91,7 @@ class TestDateFormHandler(webapp2.RequestHandler):
 		input_month = self.request.get('month')
 		input_day = self.request.get('day')
 		input_year = self.request.get('year')
-		month, day, year = valid_date(input_month, input_day, input_year)
+		month, day, year = self.valid_date(input_month, input_day, input_year)
 
 		if not (month and day and year):
 			self.write_form("That's not a valid date", input_month, input_day, input_year)
@@ -130,12 +101,12 @@ class TestDateFormHandler(webapp2.RequestHandler):
 															  "day":day, 
 															  "year":year})
 
-class SuccessfulDateHandler(webapp2.RequestHandler):
+class SuccessfulDateHandler(TestDateFormHandler_Helpers):
 	def get(self):
 		input_month = self.request.get('m')
 		input_day = self.request.get('d')
 		input_year = self.request.get('y')
-		month, day, year = valid_date(input_month, input_day, input_year)
+		month, day, year = self.valid_date(input_month, input_day, input_year)
 
 		if not (month and day and year):
 			response = "whatevs"
@@ -143,9 +114,9 @@ class SuccessfulDateHandler(webapp2.RequestHandler):
 			response = "%(month)s %(day)s, %(year)s is a great day!" % {"month":month,
 															 			"day":day, 
 															 			"year":year}
-		self.response.out.write(response)
+		self.write(response)
 
-class Rot13Handler(webapp2.RequestHandler):
+class Rot13Handler(BaseHandler):
 	def Rot13(self, s):
 		anum = ord('a')
 		znum = ord('z')
@@ -172,10 +143,7 @@ class Rot13Handler(webapp2.RequestHandler):
 		return s
 
 	def write_page(self, text="Type something in here and try out the Rot13 Cipher!"):
-			safetext = escape_html(text)
-			self.response.out.write("""Rot13<br><form method="post">
-				<textarea name="text" rows="18" cols="80">%s</textarea>
-				<br><input type="submit" value="rot13"></form>""" % safetext)
+		self.render("Rot13.html", text=text)
 
 	def get(self):
 		self.write_page()
