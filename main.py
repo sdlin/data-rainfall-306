@@ -17,6 +17,7 @@
 import os
 import webapp2
 import jinja2
+import re
 
 from google.appengine.ext import db
 
@@ -180,11 +181,52 @@ class AsciiArtHandler(BaseHandler):
 			error = "title and artwork required."
 			self.render_front(title=title, arttext=arttext, error=error)
 
+class Blog(db.Model):
+	title = db.StringProperty(required = True)
+	entrytext = db.TextProperty(required = True)
+	date_created = db.DateTimeProperty(auto_now_add = True)
+
+class BlogHandler(BaseHandler):
+	def get(self):
+		entries = db.GqlQuery("SELECT * FROM Blog "
+						   "ORDER BY date_created DESC ")
+		self.render("blog_list.html", blogentries=entries)
+
+class BlogNewPostHandler(BaseHandler):
+	def render_front(self, title="", entrytext="", error=""):
+		self.render("blognewpost.html", title=title, entrytext=entrytext, error=error)
+
+	def get(self):
+		self.render_front()
+
+	def post(self):
+		title = self.request.get("title")
+		entrytext = self.request.get("entrytext")
+
+		if title and entrytext:
+			b = Blog(title=title, entrytext=entrytext)
+			b.put()
+			self.redirect("/blog/%d" % b.key().id())
+		else:
+			error = "title and blog text required."
+			self.render_front(title=title, entrytext=entrytext, error=error)
+
+class BlogPermalinkHandler(BaseHandler):
+	def get(self, blog_id):
+		b = Blog.get_by_id(int(blog_id))
+		if b:
+			self.render("blogpermalink.html", date=b.date_created, title=b.title, entrytext=b.entrytext)
+		else:
+			self.redirect("/blog")
+
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/testformresponse', TestFormHandler),
     ('/testdateform', TestDateFormHandler),
     ('/successfuldate', SuccessfulDateHandler),
     ('/rot13', Rot13Handler),
-    ('/asciiart', AsciiArtHandler)
+    ('/asciiart', AsciiArtHandler),
+    ('/blog', BlogHandler),
+    ('/blog/newpost', BlogNewPostHandler),
+    (r'/blog/([0-9]*)', BlogPermalinkHandler)
 ], debug=True)

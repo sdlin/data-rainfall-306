@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<title>One Cool Blog - View Entries</title>
+	</head>
+
+	<body>
+		<h1> One Cool Blog </h1>
+
+		{% for entry in blogentries %}
+			<div>
+				<div>{{entry.title}} - {{entry.date_created}}</div>
+				<pre>{{entry.entrytext}}</pre>
+			</div>
+			<hr>
+		{% endfor %}
+
+	</body>
+
+</html>

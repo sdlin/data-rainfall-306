@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<title>One Cool Blog</title>
+	</head>
+
+	<body>
+
+		<h1> One Cool Blog - New Post </h1>
+
+		<form method="post">
+			<label>
+				<div>Title:</div>
+				<input type="text" maxlength="500" name="title" value="{{title}}">
+			</label>
+			<br>
+			<label>
+				<div>Blog Entry:</div>
+				<textarea name="entrytext" rows="18" cols="80">{{entrytext}}</textarea>
+			</label>
+
+			<div class="error">{{error}}</div>
+
+			<input type="submit" value="Submit Blog Post">
+		</form>
+
+	</body>
+</html>
