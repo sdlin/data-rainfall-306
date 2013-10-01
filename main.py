@@ -18,6 +18,9 @@ import os
 import webapp2
 import jinja2
 import re
+import string
+import hashlib
+import random
 
 from google.appengine.ext import db
 
@@ -36,6 +39,9 @@ class BaseHandler(webapp2.RequestHandler):
 
 	def render(self, template, **kw):
 		self.write(self.render_str(template, **kw))
+
+	def getcookie(self, cookiename):
+		return self.request.cookies.get(cookiename)
 
 class MainHandler(BaseHandler):
     def get(self):
@@ -219,6 +225,111 @@ class BlogPermalinkHandler(BaseHandler):
 		else:
 			self.redirect("/blog")
 
+def VerifyEmail(e):
+	email_re = re.compile(r"(^[-!#$%&'*+/=?^_`{}|~0-9A-Z]+(\.[-!#$%&'*+/=?^_`{}|~0-9A-Z]+)*"r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-011\013\014\016-\177])*"'r')@(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?$', re.IGNORECASE)
+	return email_re.match(e)
+
+class User(db.Model):
+	username = db.StringProperty(required = True)
+	email = db.StringProperty(required = False)
+	saltyhash = db.StringProperty(required = True)
+	date_created = db.DateTimeProperty(auto_now_add = True)
+
+def MakeSalt(length=10):
+	return ''.join(random.choice(string.letters) for x in xrange(length))
+
+def MakeSaltyHash(pw, salt=None):
+	if not salt:
+		salt = MakeSalt()
+	return MakeHash(pw + salt)+ '|' + salt
+
+def MakeHash(s):
+	return hashlib.sha256(s).hexdigest()
+
+def VerifyCookie(c):
+	try:
+		return c == MakeSaltyHash(COOKIESECRET, c.split('|')[1])
+	except:
+		return False
+
+COOKIESECRET = 'chocolatechip'
+
+class SignupHandler(BaseHandler):
+	def render_front(self, username="", email="", error=""):
+		self.render("signup.html", username=username, email=email, error=error)
+
+	def get(self):
+		self.render_front()
+
+	def post(self):
+		username = self.request.get("username")
+		password = self.request.get("password")
+		verify = self.request.get("verify")
+		email = self.request.get("email")
+		q = User.all()
+		q.filter("username =", username)
+		qresult = q.get()
+
+		if qresult:
+			error = "Username Taken."
+		elif not username:
+			error = "Username Required."
+		elif email and not VerifyEmail(email):
+			error = "Invalid Email."
+		elif not password or (password != verify):
+			error = "Check Password."
+		else:
+			saltyhash = MakeSaltyHash(password)
+			u = User(username=username, saltyhash=saltyhash, email=email)
+			u.put()
+			usercookie = MakeSaltyHash(COOKIESECRET, str(u.key().id()))
+			self.response.headers.add_header('Set-Cookie', 'user=%s' % usercookie)
+			self.redirect("/welcomeuser")
+			return
+
+		self.render_front(username=username, email=email, error=error)
+
+
+class WelcomeHandler(BaseHandler):
+	def get(self):
+		usercookie = self.getcookie('user')
+		if not VerifyCookie(usercookie):
+			self.redirect("/signup")
+			return
+		uid = usercookie.split('|')[1]
+		u = User.get_by_id(int(uid))
+		if u:
+			self.write('Welcome back, %s!' % u.username)
+		else:
+			self.write('you rascal...')
+
+class LoginHandler(BaseHandler):
+	def render_front(self, username="", error=""):
+		self.render("login.html", username=username, error=error)
+
+	def get(self):
+		self.render_front()
+
+	def post(self):
+		username = self.request.get("username")
+		password = self.request.get("password")
+		q = User.all()
+		q.filter("username =", username)
+		qresult = q.get()
+		if qresult:
+			salt = qresult.saltyhash.split('|')[1]
+			if qresult.saltyhash == MakeSaltyHash(password, salt):
+				usercookie = MakeSaltyHash(COOKIESECRET, str(qresult.key().id()))
+				self.response.headers.add_header('Set-Cookie', 'user=%s' % usercookie)
+				self.redirect("/welcomeuser")
+				return
+		self.render_front(username=username, error="invalid login")
+
+class LogoutHandler(BaseHandler):
+	def get(self):
+		self.response.headers.add_header('Set-Cookie', 'user=;Expires=Thu, 01-Jan-1970 00:00:00 GMT')
+		self.redirect('/signup')
+
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/testformresponse', TestFormHandler),
@@ -228,5 +339,9 @@ app = webapp2.WSGIApplication([
     ('/asciiart', AsciiArtHandler),
     ('/blog', BlogHandler),
     ('/blog/newpost', BlogNewPostHandler),
-    (r'/blog/([0-9]*)', BlogPermalinkHandler)
+    (r'/blog/([0-9]+)', BlogPermalinkHandler),
+    ('/signup', SignupHandler),
+    ('/welcomeuser', WelcomeHandler),
+    ('/login', LoginHandler),
+    ('/logout', LogoutHandler)
 ], debug=True)
