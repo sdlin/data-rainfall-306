@@ -56,24 +56,39 @@
 
 
 	<body>
-		<h1> AsCii aRt </h1>
+		<table cellpadding="20">
+			<tr>
+				<td>
+					<h1> AsCii aRt </h1>
 
-		<form method="post">
-			<label>
-				<div>title:</div>
-				<input type="text" maxlength="500" name="title" value="{{title}}">
-			</label>
-			<br>
-			<label>
-				<div>input ascii art:</div>
-				<textarea name="arttext">{{arttext}}</textarea>
-			</label>
+					<form method="post">
+						<label>
+							<div>title:</div>
+							<input type="text" maxlength="500" name="title" value="{{title}}">
+						</label>
+						<br>
+						<label>
+							<div>input ascii art:</div>
+							<textarea name="arttext">{{arttext}}</textarea>
+						</label>
 
-			<div class="error">{{error}}</div>
+						<div class="error">{{error}}</div>
 
-			<input type="submit" value="Submit To Art Gallery">
-		</form>
-
+						<input type="submit" value="Submit To Art Gallery">
+					</form>
+				</td>
+				<td>
+					{% if mapsurl %}
+						<br><br><br>
+						<div>
+							Known Locations From Which Posts Were Made
+							<br>
+							<img src="{{mapsurl}}">
+						</div>
+					{% endif %}
+				</td>
+			</tr>
+		</table>
 		<br>
 		<h2> Art Gallery: </h2>
 		<hr>
