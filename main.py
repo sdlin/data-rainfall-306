@@ -23,8 +23,11 @@ import hashlib
 import random
 import urllib2
 from xml.dom import minidom
+import json
+import time
 
 from google.appengine.ext import db
+from google.appengine.api import memcache
 
 JINJA_ENVIRONMENT = jinja2.Environment(
 	autoescape=True,
@@ -225,11 +228,38 @@ class Blog(db.Model):
 	entrytext = db.TextProperty(required = True)
 	date_created = db.DateTimeProperty(auto_now_add = True)
 
+def EntriesToDict(e):
+	d = []
+	for b in e:
+		d.append(BlogToDict(b))
+	return d
+
+def BlogToDict(b):
+	return {"content":b.entrytext, "subject":b.title, "created":str(b.date_created)}
+
+LAST_QUERY_TIME = 0
+PERMALINK_QUERY_TIMES = {}
+
+def GetBlogEntries():
+	global LAST_QUERY_TIME
+	entries = memcache.get('all_blogs')
+	if not entries:
+		entries = db.GqlQuery("SELECT * FROM Blog "
+						   	"ORDER BY date_created DESC ")
+		memcache.add('all_blogs', entries)
+		LAST_QUERY_TIME = int(time.strftime('%s',time.gmtime()))
+	return entries
+
 class BlogHandler(BaseHandler):
 	def get(self):
-		entries = db.GqlQuery("SELECT * FROM Blog "
-						   "ORDER BY date_created DESC ")
-		self.render("blog_list.html", blogentries=entries)
+		entries = GetBlogEntries()
+		self.render("blog_list.html", blogentries=entries, time=int(time.strftime('%s',time.gmtime()))-LAST_QUERY_TIME)
+
+class BlogHandlerJson(BaseHandler):
+	def get(self):
+		entries = GetBlogEntries()
+		self.response.out.headers['Content-Type'] = 'application/json'
+		self.write(json.dumps(EntriesToDict(entries)))
 
 class BlogNewPostHandler(BaseHandler):
 	def render_front(self, title="", entrytext="", error=""):
@@ -239,12 +269,13 @@ class BlogNewPostHandler(BaseHandler):
 		self.render_front()
 
 	def post(self):
-		title = self.request.get("title")
-		entrytext = self.request.get("entrytext")
+		title = self.request.get("subject")
+		entrytext = self.request.get("content")
 
 		if title and entrytext:
 			b = Blog(title=title, entrytext=entrytext)
 			b.put()
+			memcache.delete('all_blogs')
 			self.redirect("/blog/%d" % b.key().id())
 		else:
 			error = "title and blog text required."
@@ -252,11 +283,29 @@ class BlogNewPostHandler(BaseHandler):
 
 class BlogPermalinkHandler(BaseHandler):
 	def get(self, blog_id):
-		b = Blog.get_by_id(int(blog_id))
+		global PERMALINK_QUERY_TIMES	
+		b = memcache.get(blog_id)
+		if not b:
+			b = Blog.get_by_id(int(blog_id))
+			memcache.add(blog_id,b)
+			PERMALINK_QUERY_TIMES[blog_id] = int(time.strftime('%s',time.gmtime()))
 		if b:
-			self.render("blogpermalink.html", date=b.date_created, title=b.title, entrytext=b.entrytext)
+			timediff = int(time.strftime('%s',time.gmtime())) - PERMALINK_QUERY_TIMES[blog_id]
+			self.render("blogpermalink.html", date=b.date_created, title=b.title, entrytext=b.entrytext, time=timediff)
 		else:
 			self.redirect("/blog")
+
+class BlogPermalinkHandlerJson(BaseHandler):
+	def get(self, blog_id,jsonext):
+		if jsonext == '.json':
+			b = Blog.get_by_id(int(blog_id))
+			if b:
+				self.response.out.headers['Content-Type'] = 'application/json'
+				self.write(json.dumps(BlogToDict(b)))
+			else:
+				self.redirect("/blog")
+		else:
+			self.redirect("/blog")			
 
 def VerifyEmail(e):
 	email_re = re.compile(r"(^[-!#$%&'*+/=?^_`{}|~0-9A-Z]+(\.[-!#$%&'*+/=?^_`{}|~0-9A-Z]+)*"r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-011\013\014\016-\177])*"'r')@(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?$', re.IGNORECASE)
@@ -317,7 +366,7 @@ class SignupHandler(BaseHandler):
 			u.put()
 			usercookie = MakeSaltyHash(COOKIESECRET, str(u.key().id()))
 			self.response.headers.add_header('Set-Cookie', 'user=%s' % usercookie)
-			self.redirect("/welcomeuser")
+			self.redirect("/blog/welcomeuser")
 			return
 
 		self.render_front(username=username, email=email, error=error)
@@ -327,7 +376,7 @@ class WelcomeHandler(BaseHandler):
 	def get(self):
 		usercookie = self.getcookie('user')
 		if not VerifyCookie(usercookie):
-			self.redirect("/signup")
+			self.redirect("/blog/signup")
 			return
 		uid = usercookie.split('|')[1]
 		u = User.get_by_id(int(uid))
@@ -354,7 +403,7 @@ class LoginHandler(BaseHandler):
 			if qresult.saltyhash == MakeSaltyHash(password, salt):
 				usercookie = MakeSaltyHash(COOKIESECRET, str(qresult.key().id()))
 				self.response.headers.add_header('Set-Cookie', 'user=%s' % usercookie)
-				self.redirect("/welcomeuser")
+				self.redirect("/blog/welcomeuser")
 				return
 		self.render_front(username=username, error="invalid login")
 
@@ -362,6 +411,11 @@ class LogoutHandler(BaseHandler):
 	def get(self):
 		self.response.headers.add_header('Set-Cookie', 'user=;Expires=Thu, 01-Jan-1970 00:00:00 GMT')
 		self.redirect('/signup')
+
+class FlushHandler(BaseHandler):
+	def get(self):
+		memcache.flush_all()
+		self.redirect('/blog')		
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
@@ -371,10 +425,13 @@ app = webapp2.WSGIApplication([
     ('/rot13', Rot13Handler),
     ('/asciiart', AsciiArtHandler),
     ('/blog', BlogHandler),
+    ('/blog/.json', BlogHandlerJson),
     ('/blog/newpost', BlogNewPostHandler),
     (r'/blog/([0-9]+)', BlogPermalinkHandler),
-    ('/signup', SignupHandler),
-    ('/welcomeuser', WelcomeHandler),
-    ('/login', LoginHandler),
-    ('/logout', LogoutHandler)
+    (r'/blog/([0-9]+)(\.json)', BlogPermalinkHandlerJson),
+    ('/blog/signup', SignupHandler),
+    ('/blog/welcomeuser', WelcomeHandler),
+    ('/blog/login', LoginHandler),
+    ('/blog/logout', LogoutHandler),
+    ('/blog/flush',FlushHandler)
 ], debug=True)
