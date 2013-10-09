@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<title>Edit {{title}}</title>
+	</head>
+	<body>
+		{% if user %}
+			Welcome {{user.username}}  [<a href="../logout">Logout</a>]
+		{% endif %}
+		<br>
+		<form method="post">
+			<textarea name="wikitext" rows="18" cols="80">{{wikitext}}</textarea>
+			<br>
+			<input type="submit" value="Save Changes">
+		</form>	
+	</body>
+</html>

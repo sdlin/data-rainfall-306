@@ -25,6 +25,7 @@ import urllib2
 from xml.dom import minidom
 import json
 import time
+import logging
 
 from google.appengine.ext import db
 from google.appengine.api import memcache
@@ -338,7 +339,7 @@ COOKIESECRET = 'chocolatechip'
 
 class SignupHandler(BaseHandler):
 	def render_front(self, username="", email="", error=""):
-		self.render("signup.html", username=username, email=email, error=error)
+		self.render("signup.html", prefix="blog", username=username, email=email, error=error)
 
 	def get(self):
 		self.render_front()
@@ -387,7 +388,7 @@ class WelcomeHandler(BaseHandler):
 
 class LoginHandler(BaseHandler):
 	def render_front(self, username="", error=""):
-		self.render("login.html", username=username, error=error)
+		self.render("login.html", prefix="blog", username=username, error=error)
 
 	def get(self):
 		self.render_front()
@@ -417,6 +418,137 @@ class FlushHandler(BaseHandler):
 		memcache.flush_all()
 		self.redirect('/blog')		
 
+DEFAULTWIKITEXT = "this is the best wiki in the world"
+
+class WikiBaseHandler(BaseHandler):
+	def LoggedIn(self):
+		usercookie = self.getcookie('user')
+		if VerifyCookie(usercookie):
+			uid = usercookie.split('|')[1]
+			return User.get_by_id(int(uid))
+		else:
+			return False
+
+	def Logout(self):
+		self.response.headers.add_header('Set-Cookie', 'user=;Expires=Thu, 01-Jan-1970 00:00:00 GMT')
+
+	def SetCookie(self, usercookie):
+		self.response.headers.add_header('Set-Cookie', 'user=%s' % usercookie)
+
+	def GetUser(self, username):
+		q = User.all()
+		q.filter("username =", username)
+		return q.get()
+
+	def GetWikiModel(self, title):
+		q = WikiModel.all()
+		q.filter("title =", str(title))
+		return q.get()
+
+class WikiModel(db.Model):
+	title = db.StringProperty(required = True)
+	wikitext = db.TextProperty(required = False)
+	date_created = db.DateTimeProperty(auto_now_add = True)
+
+class WikiSignupHandler(WikiBaseHandler):
+	def render_front(self, username="", email="", error=""):
+		self.render("signup.html", prefix="wiki", username=username, email=email, error=error)
+
+	def get(self):
+		self.render_front()
+
+	def post(self):
+		username = self.request.get("username")
+		password = self.request.get("password")
+		verify = self.request.get("verify")
+		email = self.request.get("email")
+		qresult = self.GetUser(username)
+
+		if qresult:
+			error = "Username Taken."
+		elif not username:
+			error = "Username Required."
+		elif email and not VerifyEmail(email):
+			error = "Invalid Email."
+		elif not password or (password != verify):
+			error = "Check Password."
+		else:
+			saltyhash = MakeSaltyHash(password)
+			u = User(username=username, saltyhash=saltyhash, email=email)
+			u.put()
+			usercookie = MakeSaltyHash(COOKIESECRET, str(u.key().id()))
+			self.SetCookie(usercookie)
+			self.redirect("/wiki/")
+			return
+
+		self.render_front(username=username, email=email, error=error)
+
+class WikiLoginHandler(WikiBaseHandler):
+	def render_front(self, username="", error=""):
+		self.render("login.html", prefix="wiki", username=username, error=error)
+
+	def get(self):
+		self.render_front()
+
+	def post(self):
+		username = self.request.get("username")
+		password = self.request.get("password")
+		qresult = self.GetUser(username)
+		if qresult:
+			salt = qresult.saltyhash.split('|')[1]
+			if qresult.saltyhash == MakeSaltyHash(password, salt):
+				usercookie = MakeSaltyHash(COOKIESECRET, str(qresult.key().id()))
+				self.SetCookie(usercookie)
+				self.redirect("/wiki/")
+				return
+		self.render_front(username=username, error="invalid login")
+
+class WikiLogoutHandler(WikiBaseHandler):
+	def get(self):
+		self.Logout()
+		self.redirect('/wiki/')
+
+class WikiEditPageHandler(WikiBaseHandler):
+	def get(self, pagetitle):
+		w = self.GetWikiModel(pagetitle)
+		if self.LoggedIn():
+			if w:
+				self.render("wikiedit.html", user=self.LoggedIn(), title=w.title, wikitext=w.wikitext)
+			else:
+				p = WikiModel(title=pagetitle, wikitext=DEFAULTWIKITEXT)
+				p.put()
+				self.render("wikiedit.html", user=self.LoggedIn(), title=pagetitle, wikitext=DEFAULTWIKITEXT)
+		else:
+			self.redirect('../login')
+
+	def post(self, pagetitle):
+		if self.LoggedIn():
+			wikitext = self.request.get("wikitext")
+			w = self.GetWikiModel(pagetitle)
+			if w:
+				w.wikitext = wikitext
+				w.put()
+			else:
+				p = WikiModel(title=pagetitle, wikitext=wikitext)
+				p.put()
+			self.redirect('../%s' % pagetitle[1:])
+		else:
+			self.redirect('../login')			
+
+
+class WikiPageHandler(WikiBaseHandler):
+	def get(self, pagetitle):
+		w = self.GetWikiModel(pagetitle)
+		if w:
+			self.render("wikipage.html", user=self.LoggedIn(), title=w.title, wikitext=w.wikitext)
+		else:
+			self.redirect('/wiki/_edit/' + pagetitle[1:])
+
+class WikiRedirectHandler(WikiBaseHandler):
+	def get(self):
+		self.redirect('/wiki/')
+
+PAGE_RE = r'(/(?:[a-zA-Z0-9_-]+)*)'
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/testformresponse', TestFormHandler),
@@ -433,5 +565,12 @@ app = webapp2.WSGIApplication([
     ('/blog/welcomeuser', WelcomeHandler),
     ('/blog/login', LoginHandler),
     ('/blog/logout', LogoutHandler),
-    ('/blog/flush',FlushHandler)
+    ('/blog/flush',FlushHandler),
+    ('/wiki/signup', WikiSignupHandler),
+    ('/wiki/login', WikiLoginHandler),
+    ('/wiki/logout', WikiLogoutHandler),
+    ('/wiki/_edit' + PAGE_RE, WikiEditPageHandler),
+    ('/wiki' + PAGE_RE, WikiPageHandler),
+    ('/wiki' + PAGE_RE + '/', WikiPageHandler),
+    ('/wiki', WikiRedirectHandler)
 ], debug=True)

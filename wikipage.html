@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<title>{{title}}</title>
+	</head>
+	<body>
+		{% if user %}
+			Welcome {{user.username}}  [<a href="/wiki/logout">Logout</a>], [<a href="/wiki/_edit{{title}}">Edit Page</a>]
+		{% else %}
+			<a href="/wiki/login">Login</a> | <a href="/wiki/signup">Sign Up</a>
+		{% endif %}
+		<br>
+		{{wikitext}}
+	</body>
+</html>
