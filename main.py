@@ -548,6 +548,27 @@ class WikiRedirectHandler(WikiBaseHandler):
 	def get(self):
 		self.redirect('/wiki/')
 
+class AltCodeHandler(BaseHandler):
+	def AltCipher(self, s):
+		altcodemap = {u'\u00e5':'a',u'\u222b':'b',u'\u00e7':'c',u'\u2202':'d',u'\u00b4':'e',u'\u0192':'f',u'\u00a9':'g',u'\u02d9':'h',u'\u02c6':'i',u'\u2206':'j',u'\u02da':'k',u'\u00ac':'l',u'\u00b5':'m',u'\u02dc':'n',u'\u00f8':'o',u'\u03c0':'p',u'\u0153':'q',u'\u00ae':'r',u'\u00df':'s',u'\u2020':'t',u'\u00a8':'u',u'\u221a':'v',u'\u2211':'w',u'\u2248':'x',u'\u00a5':'y',u'\u03a9':'z'}
+		output = ''
+		for l in s:
+			if l in altcodemap:
+				output += altcodemap[l]
+			else:
+				output += l
+		return output
+
+	def write_page(self, text="Type something in here and try out the Alt Code Cipher!"):
+		self.render("altcodes.html", text=text)
+
+	def get(self):
+		self.write_page()
+
+	def post(self):
+		mytext = self.request.get("text")
+		self.write_page(self.AltCipher(mytext))
+
 PAGE_RE = r'(/(?:[a-zA-Z0-9_-]+)*)'
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
@@ -572,5 +593,6 @@ app = webapp2.WSGIApplication([
     ('/wiki/_edit' + PAGE_RE, WikiEditPageHandler),
     ('/wiki' + PAGE_RE, WikiPageHandler),
     ('/wiki' + PAGE_RE + '/', WikiPageHandler),
-    ('/wiki', WikiRedirectHandler)
+    ('/wiki', WikiRedirectHandler),
+    ('/altcodes', AltCodeHandler)
 ], debug=True)
