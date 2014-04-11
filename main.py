@@ -559,7 +559,7 @@ class AltCodeHandler(BaseHandler):
 				output += l
 		return output
 
-	def write_page(self, text="Type something in here and try out the Alt Code Cipher!"):
+	def write_page(self, text=u'\u2020\u00a5\u03c0\u00b4 \u00e5\u00ac\u2020 \u00e7\u00f8\u2202\u00b4.'):
 		self.render("altcodes.html", text=text)
 
 	def get(self):
