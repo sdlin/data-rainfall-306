@@ -550,11 +550,14 @@ class WikiRedirectHandler(WikiBaseHandler):
 
 class AltCodeHandler(BaseHandler):
 	def AltCipher(self, s):
-		altcodemap = {u'\u00e5':'a',u'\u222b':'b',u'\u00e7':'c',u'\u2202':'d',u'\u00b4':'e',u'\u0192':'f',u'\u00a9':'g',u'\u02d9':'h',u'\u02c6':'i',u'\u2206':'j',u'\u02da':'k',u'\u00ac':'l',u'\u00b5':'m',u'\u02dc':'n',u'\u00f8':'o',u'\u03c0':'p',u'\u0153':'q',u'\u00ae':'r',u'\u00df':'s',u'\u2020':'t',u'\u00a8':'u',u'\u221a':'v',u'\u2211':'w',u'\u2248':'x',u'\u00a5':'y',u'\u03a9':'z'}
+		alt_to_abc = {u'\u00e5':'a',u'\u222b':'b',u'\u00e7':'c',u'\u2202':'d',u'\u00b4':'e',u'\u0192':'f',u'\u00a9':'g',u'\u02d9':'h',u'\u02c6':'i',u'\u2206':'j',u'\u02da':'k',u'\u00ac':'l',u'\u00b5':'m',u'\u02dc':'n',u'\u00f8':'o',u'\u03c0':'p',u'\u0153':'q',u'\u00ae':'r',u'\u00df':'s',u'\u2020':'t',u'\u00a8':'u',u'\u221a':'v',u'\u2211':'w',u'\u2248':'x',u'\u00a5':'y',u'\u03a9':'z'}
+		abc_to_alt = {'a':u'\u00e5','b':u'\u222b','c':u'\u00e7','d':u'\u2202','e':u'\u00b4','f':u'\u0192','g':u'\u00a9','h':u'\u02d9','i':u'\u02c6','j':u'\u2206','k':u'\u02da','l':u'\u00ac','m':u'\u00b5','n':u'\u02dc','o':u'\u00f8','p':u'\u03c0','q':u'\u0153','r':u'\u00ae','s':u'\u00df','t':u'\u2020','u':u'\u00a8','v':u'\u221a','w':u'\u2211','x':u'\u2248','y':u'\u00a5','z':u'\u03a9'}
 		output = ''
 		for l in s:
-			if l in altcodemap:
-				output += altcodemap[l]
+			if l in alt_to_abc:
+				output += alt_to_abc[l]
+			elif l.lower() in abc_to_alt:
+					output += abc_to_alt[l.lower()]
 			else:
 				output += l
 		return output
